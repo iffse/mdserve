@@ -23,6 +23,10 @@ struct Args {
     /// Open in browser on start
     #[arg(short, long, default_value_t = false)]
     open: bool,
+
+    /// Include specified file content into header
+    #[arg(short = 'I', long = "include-in-hearder")]
+    include: Option<PathBuf>,
 }
 
 #[tokio::main]
@@ -57,6 +61,7 @@ async fn main() -> Result<()> {
         args.hostname,
         args.port,
         args.open,
+        args.include,
     )
     .await?;
 
