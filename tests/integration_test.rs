@@ -33,8 +33,15 @@ fn create_test_server_impl(content: &str, use_http: bool) -> (TestServer, NamedT
     let is_directory_mode = false;
     let include = None;
 
-    let router = new_router(base_dir, tracked_files, is_directory_mode, include)
-        .expect("Failed to create router");
+    let math = false;
+    let router = new_router(
+        base_dir,
+        tracked_files,
+        is_directory_mode,
+        include,
+        math,
+    )
+    .expect("Failed to create router");
 
     let server = if use_http {
         TestServer::builder()
@@ -71,8 +78,15 @@ fn create_directory_server_impl(use_http: bool) -> (TestServer, TempDir) {
     let is_directory_mode = true;
     let include = None;
 
-    let router = new_router(base_dir, tracked_files, is_directory_mode, include)
-        .expect("Failed to create router");
+    let math = false;
+    let router = new_router(
+        base_dir,
+        tracked_files,
+        is_directory_mode,
+        include,
+        math,
+    )
+    .expect("Failed to create router");
 
     let server = if use_http {
         TestServer::builder()
@@ -238,8 +252,15 @@ async fn test_image_serving() {
     let is_directory_mode = false;
     let include = None;
 
-    let router = new_router(base_dir, tracked_files, is_directory_mode, include)
-        .expect("Failed to create router");
+    let math = false;
+    let router = new_router(
+        base_dir,
+        tracked_files,
+        is_directory_mode,
+        include,
+        math,
+    )
+    .expect("Failed to create router");
     let server = TestServer::new(router).expect("Failed to create test server");
 
     // Test that markdown includes img tag
@@ -277,8 +298,15 @@ async fn test_non_image_files_not_served() {
     let is_directory_mode = false;
     let include = None;
 
-    let router = new_router(base_dir, tracked_files, is_directory_mode, include)
-        .expect("Failed to create router");
+    let math = false;
+    let router = new_router(
+        base_dir,
+        tracked_files,
+        is_directory_mode,
+        include,
+        math,
+    )
+    .expect("Failed to create router");
     let server = TestServer::new(router).expect("Failed to create test server");
 
     // Test that non-image files return 404

@@ -93,6 +93,7 @@ struct MarkdownState {
     is_directory_mode: bool,
     change_tx: broadcast::Sender<ServerMessage>,
     include: Option<String>,
+    math: bool,
 }
 
 impl MarkdownState {
@@ -101,6 +102,7 @@ impl MarkdownState {
         file_paths: Vec<PathBuf>,
         is_directory_mode: bool,
         include: Option<String>,
+        math: bool,
     ) -> Result<Self> {
         let (change_tx, _) = broadcast::channel::<ServerMessage>(16);
 
@@ -109,7 +111,7 @@ impl MarkdownState {
             let metadata = fs::metadata(&file_path)?;
             let last_modified = metadata.modified()?;
             let content = fs::read_to_string(&file_path)?;
-            let html = Self::markdown_to_html(&content)?;
+            let html = Self::markdown_to_html(&content, math)?;
 
             let filename = file_path.file_name().unwrap().to_string_lossy().to_string();
 
@@ -129,6 +131,7 @@ impl MarkdownState {
             is_directory_mode,
             change_tx,
             include,
+            math,
         })
     }
 
@@ -142,14 +145,14 @@ impl MarkdownState {
         filenames
     }
 
-    fn refresh_file(&mut self, filename: &str) -> Result<()> {
+    fn refresh_file(&mut self, filename: &str, math: bool) -> Result<()> {
         if let Some(tracked) = self.tracked_files.get_mut(filename) {
             let metadata = fs::metadata(&tracked.path)?;
             let current_modified = metadata.modified()?;
 
             if current_modified > tracked.last_modified {
                 let content = fs::read_to_string(&tracked.path)?;
-                tracked.html = Self::markdown_to_html(&content)?;
+                tracked.html = Self::markdown_to_html(&content, math)?;
                 tracked.last_modified = current_modified;
             }
         }
@@ -157,7 +160,7 @@ impl MarkdownState {
         Ok(())
     }
 
-    fn add_tracked_file(&mut self, file_path: PathBuf) -> Result<()> {
+    fn add_tracked_file(&mut self, file_path: PathBuf, math: bool) -> Result<()> {
         let filename = file_path.file_name().unwrap().to_string_lossy().to_string();
 
         if self.tracked_files.contains_key(&filename) {
@@ -172,19 +175,21 @@ impl MarkdownState {
             TrackedFile {
                 path: file_path,
                 last_modified: metadata.modified()?,
-                html: Self::markdown_to_html(&content)?,
+                html: Self::markdown_to_html(&content, math)?,
             },
         );
 
         Ok(())
     }
 
-    fn markdown_to_html(content: &str) -> Result<String> {
+    fn markdown_to_html(content: &str, math: bool) -> Result<String> {
         let mut options = markdown::Options::gfm();
         options.compile.allow_dangerous_html = true;
         options.parse.constructs.frontmatter = true;
-        options.parse.constructs.math_text = true;
-        options.parse.constructs.math_flow = true;
+        if math {
+            options.parse.constructs.math_text = true;
+            options.parse.constructs.math_flow = true;
+        }
 
         let html_body = markdown::to_html_with_options(content, &options)
             .unwrap_or_else(|_| "Error parsing markdown".to_string());
@@ -206,15 +211,19 @@ async fn handle_markdown_file_change(path: &Path, state: &SharedMarkdownState) {
     };
 
     let mut state_guard = state.lock().await;
+    let math = state_guard.math;
 
     // If file is already tracked, refresh its content
     if state_guard.tracked_files.contains_key(&filename) {
-        if state_guard.refresh_file(&filename).is_ok() {
+        if state_guard.refresh_file(&filename, math).is_ok() {
             let _ = state_guard.change_tx.send(ServerMessage::Reload);
         }
     } else if state_guard.is_directory_mode {
         // New file in directory mode - add and reload
-        if state_guard.add_tracked_file(path.to_path_buf()).is_ok() {
+        if state_guard
+            .add_tracked_file(path.to_path_buf(), math)
+            .is_ok()
+        {
             let _ = state_guard.change_tx.send(ServerMessage::Reload);
         }
     }
@@ -299,6 +308,7 @@ pub fn new_router(
     tracked_files: Vec<PathBuf>,
     is_directory_mode: bool,
     include: Option<String>,
+    math: bool,
 ) -> Result<Router> {
     let base_dir = base_dir.canonicalize()?;
 
@@ -307,6 +317,7 @@ pub fn new_router(
         tracked_files,
         is_directory_mode,
         include,
+        math,
     )?));
 
     let watcher_state = state.clone();
@@ -358,6 +369,7 @@ pub async fn serve_markdown(
     port: u16,
     open_in_browser: bool,
     include_in_header: Option<Vec<PathBuf>>,
+    math: bool,
 ) -> Result<()> {
     let hostname = hostname.as_ref();
 
@@ -377,7 +389,13 @@ pub async fn serve_markdown(
         None
     };
 
-    let router = new_router(base_dir.clone(), tracked_files, is_directory_mode, include)?;
+    let router = new_router(
+        base_dir.clone(),
+        tracked_files,
+        is_directory_mode,
+        include,
+        math,
+    )?;
 
     let listener = TcpListener::bind((hostname, port)).await?;
 
@@ -426,7 +444,9 @@ async fn serve_html_root(State(state): State<SharedMarkdownState>) -> impl IntoR
         }
     };
 
-    let _ = state.refresh_file(&filename);
+    let math = state.math;
+
+    let _ = state.refresh_file(&filename, math);
 
     render_markdown(&state, &filename).await
 }
@@ -442,7 +462,8 @@ async fn serve_file(
             return (StatusCode::NOT_FOUND, Html("File not found".to_string())).into_response();
         }
 
-        let _ = state.refresh_file(&filename);
+        let math = state.math;
+        let _ = state.refresh_file(&filename, math);
 
         let (status, html) = render_markdown(&state, &filename).await;
         (status, html).into_response()

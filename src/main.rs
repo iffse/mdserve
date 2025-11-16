@@ -27,6 +27,10 @@ struct Args {
     /// Include specified file content into header
     #[arg(short = 'I', long = "include-in-header")]
     include: Option<Vec<PathBuf>>,
+
+    /// Enable parsing of LaTeX math blocks
+    #[arg(short, long, default_value_t = false)]
+    math: bool,
 }
 
 #[tokio::main]
@@ -62,6 +66,7 @@ async fn main() -> Result<()> {
         args.port,
         args.open,
         args.include,
+        args.math,
     )
     .await?;
 
