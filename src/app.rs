@@ -357,15 +357,22 @@ pub async fn serve_markdown(
     hostname: impl AsRef<str>,
     port: u16,
     open_in_browser: bool,
-    include_in_header: Option<PathBuf>,
+    include_in_header: Option<Vec<PathBuf>>,
 ) -> Result<()> {
     let hostname = hostname.as_ref();
 
     let first_file = tracked_files.first().cloned();
 
     let include = if let Some(include_path) = include_in_header {
-        println!("📎 Included in header: {}", include_path.display());
-        Some(fs::read_to_string(include_path)?)
+        println!("📎 Files included into header:");
+        let mut combined = String::new();
+        for path in include_path {
+            println!("  - {}", path.display());
+            let content = fs::read_to_string(&path)?;
+            combined.push_str(&content);
+            combined.push('\n');
+        }
+        Some(combined)
     } else {
         None
     };

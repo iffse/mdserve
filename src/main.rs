@@ -26,7 +26,7 @@ struct Args {
 
     /// Include specified file content into header
     #[arg(short = 'I', long = "include-in-hearder")]
-    include: Option<PathBuf>,
+    include: Option<Vec<PathBuf>>,
 }
 
 #[tokio::main]
