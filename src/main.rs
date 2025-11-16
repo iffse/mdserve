@@ -25,7 +25,7 @@ struct Args {
     open: bool,
 
     /// Include specified file content into header
-    #[arg(short = 'I', long = "include-in-hearder")]
+    #[arg(short = 'I', long = "include-in-header")]
     include: Option<Vec<PathBuf>>,
 }
 
